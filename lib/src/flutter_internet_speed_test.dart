@@ -29,6 +29,179 @@ class FlutterInternetSpeedTest {
 
   bool isTestInProgress() => _isTestInProgress;
 
+  Future<void> startDownloading({
+    required ResultCallback onCompleted,
+    DefaultCallback? onStarted,
+    ResultCompletionCallback? onDownloadComplete,
+    TestProgressCallback? onProgress,
+    DefaultCallback? onDefaultServerSelectionInProgress,
+    DefaultServerSelectionCallback? onDefaultServerSelectionDone,
+    ErrorCallback? onError,
+    CancelCallback? onCancel,
+    String? downloadTestServer,
+    int fileSizeInBytes = _defaultFileSize,
+    bool useFastApi = true,
+  }) async {
+    if (_isTestInProgress) {
+      return;
+    }
+    if (await isInternetAvailable() == false) {
+      if (onError != null) {
+        onError('No internet connection', 'No internet connection');
+      }
+      return;
+    }
+
+    if (fileSizeInBytes < _defaultFileSize) {
+      fileSizeInBytes = _defaultFileSize;
+    }
+    _isTestInProgress = true;
+
+    if (onStarted != null) onStarted();
+
+    if (downloadTestServer == null && useFastApi) {
+      if (onDefaultServerSelectionInProgress != null) {
+        onDefaultServerSelectionInProgress();
+      }
+      final serverSelectionResponse = await FlutterInternetSpeedTestPlatform.instance.getDefaultServer();
+
+      if (onDefaultServerSelectionDone != null) {
+        onDefaultServerSelectionDone(serverSelectionResponse?.client);
+      }
+      String? url = serverSelectionResponse?.targets?.first.url;
+      if (url != null) {
+        downloadTestServer = downloadTestServer ?? url;
+      }
+    }
+    downloadTestServer ??= downloadTestServer ?? _defaultDownloadTestServer;
+
+    if (_isCancelled) {
+      if (onCancel != null) {
+        onCancel();
+        _isTestInProgress = false;
+        _isCancelled = false;
+        return;
+      }
+    }
+
+    final startDownloadTimeStamp = DateTime.now().millisecondsSinceEpoch;
+    FlutterInternetSpeedTestPlatform.instance.startDownloadTesting(
+      onDone: (double transferRate, SpeedUnit unit) {
+        final downloadDuration = DateTime.now().millisecondsSinceEpoch - startDownloadTimeStamp;
+        final downloadResult = TestResult(TestType.download, transferRate, unit, durationInMillis: downloadDuration);
+
+        if (onProgress != null) onProgress(100, downloadResult);
+        if (onDownloadComplete != null) onDownloadComplete(downloadResult);
+        _isTestInProgress = false;
+      },
+      onProgress: (double percent, double transferRate, SpeedUnit unit) {
+        final downloadProgressResult = TestResult(TestType.download, transferRate, unit);
+        if (onProgress != null) onProgress(percent, downloadProgressResult);
+      },
+      onError: (String errorMessage, String speedTestError) {
+        if (onError != null) onError(errorMessage, speedTestError);
+        _isTestInProgress = false;
+        _isCancelled = false;
+      },
+      onCancel: () {
+        if (onCancel != null) onCancel();
+        _isTestInProgress = false;
+        _isCancelled = false;
+      },
+      fileSize: fileSizeInBytes,
+      testServer: downloadTestServer,
+    );
+  }
+
+  Future<void> startUploading({
+    required ResultCallback onCompleted,
+    DefaultCallback? onStarted,
+    ResultCompletionCallback? onUploadComplete,
+    TestProgressCallback? onProgress,
+    DefaultCallback? onDefaultServerSelectionInProgress,
+    DefaultServerSelectionCallback? onDefaultServerSelectionDone,
+    ErrorCallback? onError,
+    CancelCallback? onCancel,
+    String? uploadTestServer,
+    int fileSizeInBytes = _defaultFileSize,
+    bool useFastApi = true,
+  }) async {
+    if (_isTestInProgress) {
+      return;
+    }
+    if (await isInternetAvailable() == false) {
+      if (onError != null) {
+        onError('No internet connection', 'No internet connection');
+      }
+      return;
+    }
+
+    if (fileSizeInBytes < _defaultFileSize) {
+      fileSizeInBytes = _defaultFileSize;
+    }
+    _isTestInProgress = true;
+
+    if (onStarted != null) onStarted();
+
+    if ((uploadTestServer == null) && useFastApi) {
+      if (onDefaultServerSelectionInProgress != null) {
+        onDefaultServerSelectionInProgress();
+      }
+      final serverSelectionResponse =
+      await FlutterInternetSpeedTestPlatform.instance.getDefaultServer();
+
+      if (onDefaultServerSelectionDone != null) {
+        onDefaultServerSelectionDone(serverSelectionResponse?.client);
+      }
+      String? url = serverSelectionResponse?.targets?.first.url;
+      if (url != null) {
+        uploadTestServer = uploadTestServer ?? url;
+      }
+    }
+    uploadTestServer ??= uploadTestServer ?? _defaultUploadTestServer;
+
+    if (_isCancelled) {
+      if (onCancel != null) {
+        onCancel();
+        _isTestInProgress = false;
+        _isCancelled = false;
+        return;
+      }
+    }
+
+    final startUploadTimeStamp = DateTime.now().millisecondsSinceEpoch;
+    FlutterInternetSpeedTestPlatform.instance.startUploadTesting(
+      onDone: (double transferRate, SpeedUnit unit) {
+        final uploadDuration = DateTime.now().millisecondsSinceEpoch - startUploadTimeStamp;
+        final uploadResult = TestResult(TestType.upload, transferRate, unit, durationInMillis: uploadDuration);
+
+        if (onProgress != null) onProgress(100, uploadResult);
+        if (onUploadComplete != null) onUploadComplete(uploadResult);
+
+        _isTestInProgress = false;
+        _isCancelled = false;
+      },
+      onProgress: (double percent, double transferRate, SpeedUnit unit) {
+        final uploadProgressResult = TestResult(TestType.upload, transferRate, unit);
+        if (onProgress != null) {
+          onProgress(percent, uploadProgressResult);
+        }
+      },
+      onError: (String errorMessage, String speedTestError) {
+        if (onError != null) onError(errorMessage, speedTestError);
+        _isTestInProgress = false;
+        _isCancelled = false;
+      },
+      onCancel: () {
+        if (onCancel != null) onCancel();
+        _isTestInProgress = false;
+        _isCancelled = false;
+      },
+      fileSize: fileSizeInBytes,
+      testServer: uploadTestServer,
+    );
+  }
+
   Future<void> startTesting({
     required ResultCallback onCompleted,
     DefaultCallback? onStarted,

@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 import 'package:flutter_internet_speed_test/flutter_internet_speed_test.dart';
 
 void main() {
@@ -31,12 +34,153 @@ class _MyAppState extends State<MyApp> {
 
   String _unitText = 'Mbps';
 
+  Timer? timer;
+  bool endTest = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       reset();
     });
+  }
+
+  void download() async {
+    /// there was a if loop here: "if (!_testInProgress)", it seems it does not help at all
+    await internetSpeedTest.startDownloading(
+      onStarted: () {
+        setState(() => _testInProgress = true);
+      },
+      onCompleted: (TestResult download, TestResult upload) {
+        if (kDebugMode) {
+          print(
+              'the transfer rate ${download.transferRate}, ${upload.transferRate}');
+        }
+        setState(() {
+          _downloadRate = download.transferRate;
+          _unitText =
+          download.unit == SpeedUnit.kbps ? 'Kbps' : 'Mbps';
+          _downloadProgress = '100';
+          _downloadCompletionTime = download.durationInMillis;
+        });
+      },
+      onProgress: (double percent, TestResult data) {
+        if (kDebugMode) {
+          print(
+              'the transfer rate $data.transferRate, the percent $percent');
+        }
+        setState(() {
+          _unitText =
+          data.unit == SpeedUnit.kbps ? 'Kbps' : 'Mbps';
+          _downloadRate = data.transferRate;
+          _downloadProgress = percent.toStringAsFixed(2);
+
+        });
+      },
+      onError: (String errorMessage, String speedTestError) {
+        if (kDebugMode) {
+          print(
+              'the errorMessage $errorMessage, the speedTestError $speedTestError');
+        }
+        endTest = true;
+        timer!.cancel();
+        reset();
+      },
+      onDefaultServerSelectionInProgress: () {
+        setState(() {
+          _isServerSelectionInProgress = true;
+        });
+      },
+      onDefaultServerSelectionDone: (Client? client) {
+        setState(() {
+          _isServerSelectionInProgress = false;
+          _ip = client?.ip;
+          _asn = client?.asn;
+          _isp = client?.isp;
+        });
+      },
+      onDownloadComplete: (TestResult data) {
+        setState(() {
+          _downloadRate = data.transferRate;
+          _unitText =
+          data.unit == SpeedUnit.kbps ? 'Kbps' : 'Mbps';
+          _downloadCompletionTime = data.durationInMillis;
+          /// test the essential of the bool
+          _testInProgress = false;
+        });
+      },
+      onCancel: () {
+        reset();
+      });
+  }
+
+  void upload() async {
+    /// there was a if loop here: "if (!_testInProgress)", it seems it does not help at all
+    await internetSpeedTest.startUploading(
+        onStarted: () {
+          setState(() => _testInProgress = true);
+        },
+        onCompleted: (TestResult download, TestResult upload) {
+          if (kDebugMode) {
+            print(
+                'the transfer rate ${download.transferRate}, ${upload.transferRate}');
+          }
+          setState(() {
+            _uploadRate = upload.transferRate;
+            _unitText =
+            upload.unit == SpeedUnit.kbps ? 'Kbps' : 'Mbps';
+            _uploadProgress = '100';
+            _uploadCompletionTime = upload.durationInMillis;
+          });
+        },
+        onProgress: (double percent, TestResult data) {
+          if (kDebugMode) {
+            print(
+                'the transfer rate $data.transferRate, the percent $percent');
+          }
+          setState(() {
+            _unitText =
+            data.unit == SpeedUnit.kbps ? 'Kbps' : 'Mbps';
+            _uploadRate = data.transferRate;
+            _uploadProgress = percent.toStringAsFixed(2);
+
+          });
+        },
+        onError: (String errorMessage, String speedTestError) {
+          if (kDebugMode) {
+            print(
+                'the errorMessage $errorMessage, the speedTestError $speedTestError');
+          }
+          endTest = true;
+          timer!.cancel();
+          reset();
+        },
+        onDefaultServerSelectionInProgress: () {
+          setState(() {
+            _isServerSelectionInProgress = true;
+          });
+        },
+        onDefaultServerSelectionDone: (Client? client) {
+          setState(() {
+            _isServerSelectionInProgress = false;
+            _ip = client?.ip;
+            _asn = client?.asn;
+            _isp = client?.isp;
+          });
+        },
+        onUploadComplete: (TestResult data) {
+          setState(() {
+            _uploadRate = data.transferRate;
+            _unitText =
+            data.unit == SpeedUnit.kbps ? 'Kbps' : 'Mbps';
+            _uploadCompletionTime = data.durationInMillis;
+            /// test the essential of the bool
+            _testInProgress = false;
+          });
+        },
+        onCancel: () {
+          reset();
+        });
   }
 
   @override
@@ -97,90 +241,45 @@ class _MyAppState extends State<MyApp> {
                     : 'IP: ${_ip ?? '--'} | ASP: ${_asn ?? '--'} | ISP: ${_isp ?? '--'}'),
               ),
               if (!_testInProgress) ...{
-                ElevatedButton(
-                  child: const Text('Start Testing'),
-                  onPressed: () async {
-                    reset();
-                    await internetSpeedTest.startTesting(onStarted: () {
-                      setState(() => _testInProgress = true);
-                    }, onCompleted: (TestResult download, TestResult upload) {
-                      if (kDebugMode) {
-                        print(
-                            'the transfer rate ${download.transferRate}, ${upload.transferRate}');
-                      }
-                      setState(() {
-                        _downloadRate = download.transferRate;
-                        _unitText =
-                            download.unit == SpeedUnit.kbps ? 'Kbps' : 'Mbps';
-                        _downloadProgress = '100';
-                        _downloadCompletionTime = download.durationInMillis;
-                      });
-                      setState(() {
-                        _uploadRate = upload.transferRate;
-                        _unitText =
-                            upload.unit == SpeedUnit.kbps ? 'Kbps' : 'Mbps';
-                        _uploadProgress = '100';
-                        _uploadCompletionTime = upload.durationInMillis;
-                        _testInProgress = false;
-                      });
-                    }, onProgress: (double percent, TestResult data) {
-                      if (kDebugMode) {
-                        print(
-                            'the transfer rate $data.transferRate, the percent $percent');
-                      }
-                      setState(() {
-                        _unitText =
-                            data.unit == SpeedUnit.kbps ? 'Kbps' : 'Mbps';
-                        if (data.type == TestType.download) {
-                          _downloadRate = data.transferRate;
-                          _downloadProgress = percent.toStringAsFixed(2);
-                        } else {
-                          _uploadRate = data.transferRate;
-                          _uploadProgress = percent.toStringAsFixed(2);
-                        }
-                      });
-                    }, onError: (String errorMessage, String speedTestError) {
-                      if (kDebugMode) {
-                        print(
-                            'the errorMessage $errorMessage, the speedTestError $speedTestError');
-                      }
-                      reset();
-                    }, onDefaultServerSelectionInProgress: () {
-                      setState(() {
-                        _isServerSelectionInProgress = true;
-                      });
-                    }, onDefaultServerSelectionDone: (Client? client) {
-                      setState(() {
-                        _isServerSelectionInProgress = false;
-                        _ip = client?.ip;
-                        _asn = client?.asn;
-                        _isp = client?.isp;
-                      });
-                    }, onDownloadComplete: (TestResult data) {
-                      setState(() {
-                        _downloadRate = data.transferRate;
-                        _unitText =
-                            data.unit == SpeedUnit.kbps ? 'Kbps' : 'Mbps';
-                        _downloadCompletionTime = data.durationInMillis;
-                      });
-                    }, onUploadComplete: (TestResult data) {
-                      setState(() {
-                        _uploadRate = data.transferRate;
-                        _unitText =
-                            data.unit == SpeedUnit.kbps ? 'Kbps' : 'Mbps';
-                        _uploadCompletionTime = data.durationInMillis;
-                      });
-                    }, onCancel: () {
-                      reset();
-                    });
-                  },
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    ElevatedButton(
+                      child: const Text('Start Downloading'),
+                      onPressed: () {
+                        timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+                          if (!endTest) {
+                            download();
+                          } else {
+                            timer.cancel();
+                          }
+                        });
+                      },
+                    ),
+                    ElevatedButton(
+                      child: const Text('Start Uploading'),
+                      onPressed: () {
+                        timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+                          if (!endTest) {
+                            upload();
+                          } else {
+                            timer.cancel();
+                          }
+                        });
+                      },
+                    )
+                  ],
                 )
               } else ...{
                 const CircularProgressIndicator(),
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: TextButton.icon(
-                    onPressed: () => internetSpeedTest.cancelTest(),
+                    onPressed: () {
+                      endTest = true;
+                      internetSpeedTest.cancelTest();
+                      timer!.cancel();
+                    },
                     icon: const Icon(Icons.cancel_rounded),
                     label: const Text('Cancel'),
                   ),
@@ -208,6 +307,8 @@ class _MyAppState extends State<MyApp> {
         _ip = null;
         _asn = null;
         _isp = null;
+
+        endTest = false;
       }
     });
   }
